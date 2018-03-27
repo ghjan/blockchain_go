@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
-	"log"
+"bytes"
+"encoding/binary"
+"log"
 )
 
 // IntToHex converts an int64 to a byte array
