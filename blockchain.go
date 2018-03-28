@@ -1,6 +1,9 @@
 package main
 
-import "github.com/boltdb/bolt"
+import (
+	"github.com/boltdb/bolt"
+	"log"
+)
 
 const dbFile = "blockchain.db"
 const blocksBucket = "blocks"
@@ -19,14 +22,16 @@ type BlockchainIterator struct {
 func (i *BlockchainIterator) Next() *Block {
 	var block *Block
 
-	i.db.View(func(tx *bolt.Tx) error {
+	err := i.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		encodedBlock := b.Get(i.currentHash)
 		block = DeserializeBlock(encodedBlock)
 
 		return nil
 	})
-
+	if err != nil {
+		log.Panic(err)
+	}
 	i.currentHash = block.PrevBlockHash
 
 	return block
@@ -42,23 +47,30 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 func (bc *Blockchain) AddBlock(data string) {
 	var lastHash []byte
 
-	bc.db.View(func(tx *bolt.Tx) error {
+	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
 
 		return nil
 	})
-
+	if err != nil {
+		log.Panic(err)
+	}
 	newBlock := NewBlock(data, lastHash)
 
-	bc.db.Update(func(tx *bolt.Tx) error {
+	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-		b.Put(newBlock.Hash, newBlock.Serialize())
-		b.Put([]byte("l"), newBlock.Hash)
+		err := b.Put(newBlock.Hash, newBlock.Serialize())
+		err = b.Put([]byte("l"), newBlock.Hash)
 		bc.tip = newBlock.Hash
-
+		if err != nil {
+			return err
+		}
 		return nil
 	})
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 // NewBlockchain creates a new Blockchain with genesis Block
@@ -67,23 +79,32 @@ func (bc *Blockchain) AddBlock(data string) {
 //}
 func NewBlockchain() *Blockchain {
 	var tip []byte
-	db, _ := bolt.Open(dbFile, 0600, nil)
-
-	db.Update(func(tx *bolt.Tx) error {
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 
 		if b == nil {
 			genesis := NewGenesisBlock()
-			b, _ := tx.CreateBucket([]byte(blocksBucket))
-			b.Put(genesis.Hash, genesis.Serialize())
-			b.Put([]byte("l"), genesis.Hash)
+			b, err := tx.CreateBucket([]byte(blocksBucket))
+			err = b.Put(genesis.Hash, genesis.Serialize())
+			err = b.Put([]byte("l"), genesis.Hash)
 			tip = genesis.Hash
+			if err != nil {
+				log.Panic(err)
+			}
 		} else {
 			tip = b.Get([]byte("l"))
 		}
 
 		return nil
 	})
+
+	if err != nil {
+		log.Panic(err)
+	}
 
 	bc := Blockchain{tip, db}
 
