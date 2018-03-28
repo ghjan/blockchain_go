@@ -61,11 +61,14 @@ func (bc *Blockchain) AddBlock(data string) {
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		err := b.Put(newBlock.Hash, newBlock.Serialize())
-		err = b.Put([]byte("l"), newBlock.Hash)
-		bc.tip = newBlock.Hash
 		if err != nil {
 			return err
 		}
+		err = b.Put([]byte("l"), newBlock.Hash)
+		if err != nil {
+			return err
+		}
+		bc.tip = newBlock.Hash
 		return nil
 	})
 	if err != nil {
@@ -85,12 +88,18 @@ func NewBlockchain() *Blockchain {
 		if b == nil {
 			genesis := NewGenesisBlock()
 			b, err := tx.CreateBucket([]byte(blocksBucket))
-			err = b.Put(genesis.Hash, genesis.Serialize())
-			err = b.Put([]byte("l"), genesis.Hash)
-			tip = genesis.Hash
 			if err != nil {
-				log.Panic(err)
+				return err
 			}
+			err = b.Put(genesis.Hash, genesis.Serialize())
+			if err != nil {
+				return err
+			}
+			err = b.Put([]byte("l"), genesis.Hash)
+			if err != nil {
+				return err
+			}
+			tip = genesis.Hash
 		} else {
 			tip = b.Get([]byte("l"))
 		}
