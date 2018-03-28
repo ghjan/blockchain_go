@@ -73,10 +73,6 @@ func (bc *Blockchain) AddBlock(data string) {
 	}
 }
 
-// NewBlockchain creates a new Blockchain with genesis Block
-//func NewBlockchain() *Blockchain {
-//	return &Blockchain{[]*Block{NewGenesisBlock()}}
-//}
 func NewBlockchain() *Blockchain {
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
