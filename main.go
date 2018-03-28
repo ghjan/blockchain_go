@@ -6,10 +6,13 @@ import (
 )
 
 func main() {
+	//testBlockchain()
+	cliRun()
+}
+func testBlockchain() {
 	bc := NewBlockchain()
 	defer bc.db.Close()
 	bci := bc.Iterator()
-
 	bc.AddBlock("Send 1 BTC to Ivan")
 	bc.AddBlock("Send 2 more BTC to Ivan")
 	for {
