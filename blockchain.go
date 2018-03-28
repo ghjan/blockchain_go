@@ -2,6 +2,9 @@ package main
 
 import "github.com/boltdb/bolt"
 
+const dbFile = "blockchain.db"
+const blocksBucket = "blocks"
+
 // Blockchain keeps a sequence of Blocks
 type Blockchain struct {
 	tip []byte
@@ -66,7 +69,7 @@ func NewBlockchain() *Blockchain {
 	var tip []byte
 	db, _ := bolt.Open(dbFile, 0600, nil)
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 
 		if b == nil {
