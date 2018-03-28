@@ -59,6 +59,9 @@ fabric.properties
 *.dll
 *.so
 *.dylib
+*.db
+*.lock
+
 
 # Test binary, build with `go test -c`
 *.test

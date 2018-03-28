@@ -7,6 +7,7 @@ import (
 
 func main() {
 	bc := NewBlockchain()
+	defer bc.db.Close()
 	bci := bc.Iterator()
 
 	bc.AddBlock("Send 1 BTC to Ivan")
@@ -21,4 +22,12 @@ func main() {
 		fmt.Println()
 
 	}
+}
+
+func cliRun() {
+	bc := NewBlockchain()
+	defer bc.db.Close()
+
+	cli := CLI{bc}
+	cli.Run()
 }
