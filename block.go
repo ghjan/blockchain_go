@@ -20,7 +20,7 @@ type Block struct {
 // SetHash calculates and sets block hash
 func (b *Block) SetHash() {
 	timestamp := []byte(strconv.FormatInt(b.Timestamp, 10))
-	headers := bytes.Join([][]byte{b.PrevBlockHash, b.Data, timestamp}, []byte{})
+	headers := bytes.Join([][]byte{b.PrevBlockHash, b.Hash, timestamp}, []byte{})
 	hash := sha256.Sum256(headers)
 
 	b.Hash = hash[:]
