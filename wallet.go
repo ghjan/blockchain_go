@@ -8,7 +8,8 @@ import (
 	"crypto/sha256"
 	"log"
 
-	"golang.org/x/crypto/ripemd160"
+	"github.com/golang/crypto/ripemd160"
+	//"golang.org/x/crypto/ripemd160"
 )
 
 const version = byte(0x00)
