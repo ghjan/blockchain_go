@@ -255,23 +255,21 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 
 // SignTransaction signs inputs of a Transaction
 func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
-	prevTXs := make(map[string]Transaction)
-
-	for _, vin := range tx.Vin {
-		prevTX, err := bc.FindTransaction(vin.Txid)
-		if err != nil {
-			log.Panic(err)
-		}
-		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
-	}
+	prevTXs := bc.GetPrevTxsFromTx(tx)
 
 	tx.Sign(privKey, prevTXs)
 }
 
 // VerifyTransaction verifies transaction input signatures
 func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
-	prevTXs := make(map[string]Transaction)
+	prevTXs := bc.GetPrevTxsFromTx(tx)
 
+	return tx.Verify(prevTXs)
+}
+
+// GetPrevTxsFromTx get prevTxs from tx.Vin
+func (bc *Blockchain) GetPrevTxsFromTx(tx *Transaction) map[string]Transaction {
+	prevTXs := make(map[string]Transaction)
 	for _, vin := range tx.Vin {
 		prevTX, err := bc.FindTransaction(vin.Txid)
 		if err != nil {
@@ -279,8 +277,7 @@ func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
 		}
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
-
-	return tx.Verify(prevTXs)
+	return prevTXs
 }
 
 func dbExists() bool {

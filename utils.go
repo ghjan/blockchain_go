@@ -23,3 +23,9 @@ func ReverseBytes(data []byte) {
 		data[i], data[j] = data[j], data[i]
 	}
 }
+
+func GetPubkeyhashFromAddress(address string) []byte {
+	pubKeyHash := Base58Decode([]byte(address))
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	return pubKeyHash
+}

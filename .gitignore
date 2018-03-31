@@ -1,3 +1,5 @@
 .idea
 *.db
 wallet.dat
+*.log
+*.lock
