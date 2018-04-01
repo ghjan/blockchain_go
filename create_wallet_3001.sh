@@ -1,0 +1,4 @@
+export NODE_ID=3001
+blockchain_go createwallet
+blockchain_go createwallet
+blockchain_go createwallet

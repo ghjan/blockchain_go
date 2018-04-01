@@ -309,7 +309,11 @@ func handleTx(request []byte, bc *Blockchain) {
 
 	txData := payload.Transaction
 	tx := DeserializeTransaction(txData)
-	mempool[hex.EncodeToString(tx.ID)] = tx
+	if bc.VerifyTransaction(&tx) {
+		mempool[hex.EncodeToString(tx.ID)] = tx
+	}else{
+		fmt.Println("Received transaction is invalid! Waiting for new ones..")
+	}
 
 	if nodeAddress == knownNodes[0] {
 		for _, node := range knownNodes {
