@@ -1,2 +1,5 @@
+.idea
+*.lock
+*.log
 *.db
 *.dat

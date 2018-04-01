@@ -171,6 +171,13 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 
 	return true
 }
+func TempHashTx(txCopy Transaction, inID int, vin TXInput, prevTXs map[string]Transaction) {
+	prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+	txCopy.Vin[inID].Signature = nil
+	txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
+	txCopy.ID = txCopy.Hash()
+	txCopy.Vin[inID].PubKey = nil
+}
 
 // NewCoinbaseTX creates a new coinbase transaction
 func NewCoinbaseTX(to, data string) *Transaction {
