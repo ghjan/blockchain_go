@@ -1,2 +1,2 @@
 export NODE_ID=3002
-blockchain_go startnode -miner 1GCJBDpg8B1chEV8FPmN8YCg1HKBtmfo8U
+blockchain_go startnode -miner $WALLET_4
