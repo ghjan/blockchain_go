@@ -3,11 +3,15 @@ services:
   main_node:
     image: cajan2/blockchain_go
     command: source create_blockchain.sh
+    volumes:
+      - $GOPATH/src/github.com/ghjan/blockchain_go:$GOPATH/src/github.com/ghjan/blockchain_go
     ports:
       - 3000:3000
   wallet_node:
     image: cajan2/blockchain_go
     command: source create_wallet_3001.sh && source start_wallet_node.sh
+    volumes:
+      - $GOPATH/src/github.com/ghjan/blockchain_go:$GOPATH/src/github.com/ghjan/blockchain_go
     ports:
       - 3001:3001
     depends_on:
@@ -15,6 +19,8 @@ services:
   miner_node:
     image: cajan2/blockchain_go
     command: source create_miner_wallet_3002.sh && source start_miner_node.sh
+    volumes:
+      - $GOPATH/src/github.com/ghjan/blockchain_go:$GOPATH/src/github.com/ghjan/blockchain_go
     ports:
       - 3002:3002
     depends_on:
