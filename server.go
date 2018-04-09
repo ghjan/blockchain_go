@@ -467,3 +467,7 @@ func nodeIsKnown(addr string) bool {
 
 	return false
 }
+
+//TODO addr message
+// Provide information on known nodes of the network. Non-advertised nodes should be forgotten after typically 3 hours
+
