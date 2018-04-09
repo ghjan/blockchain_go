@@ -3,9 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 )
 
 func (cli *CLI) createBlockchain(address, nodeID string) {
+	if strings.Contains(address, ":") {
+		address = strings.Replace(strings.Split(address, ":")[1], " ", "", -1)
+		address = strings.Replace(address, "\n", "", -1)
+	}
 	if !ValidateAddress(address) {
 		log.Panic("ERROR: Address is not valid")
 	}
