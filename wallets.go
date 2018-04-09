@@ -56,6 +56,7 @@ func (ws Wallets) GetWallet(address string) Wallet {
 // LoadFromFile loads wallets from the file
 func (ws *Wallets) LoadFromFile(nodeID string) error {
 	walletFile := fmt.Sprintf(walletFile, nodeID)
+	//如果返回的错误类型使用os.IsNotExist()判断为true,说明文件或文件夹不存在
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
 	}
