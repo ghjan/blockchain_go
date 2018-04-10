@@ -2,10 +2,10 @@
 export NODE_ID=3000
 check_results=$(blockchain_go createwallet)
 echo $check_results
-blockchain_go createblockchain -address "$check_results" > temp.txt
-sed 's/Done!//g' temp.txt >temp2.txt
-sed 's/ //g' temp2.txt >temp3.txt
-sed 's/\r/,/g' temp3.txt >temp4.txt
+blockchain_go createblockchain -address "$check_results" > temp.log
+sed 's/Done!//g' temp.log >temp2.log
+sed 's/ //g' temp2.log >temp3.log
+sed 's/\r/,/g' temp3.log >temp4.log
 
 chain_result=${result//Done/}
 chain_result=${chain_result// /}

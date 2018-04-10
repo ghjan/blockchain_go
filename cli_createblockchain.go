@@ -7,7 +7,7 @@ import (
 )
 
 func (cli *CLI) createBlockchain(address, nodeID string) {
-	if strings.Contains(address, ":") {
+	if strings.Count(address,"")>36 || strings.Contains(address, ":") {
 		address = strings.Replace(strings.Split(address, ":")[1], " ", "", -1)
 		address = strings.Replace(address, "\n", "", -1)
 	}
