@@ -9,11 +9,15 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"time"
 )
 
-const protocol = "tcp"
-const nodeVersion = 1
-const commandLength = 12
+const PROTOCOL = "tcp"
+const NODE_VERSION = 1
+const COMMAND_LENGTH = 12
+const THRESHOLD = 2
+const RETRY = 3
+const INVERVAL_RETRY = 3
 
 var nodeAddress string
 var miningAddress string
@@ -58,7 +62,7 @@ type verzion struct {
 }
 
 func commandToBytes(command string) []byte {
-	var bytes [commandLength]byte
+	var bytes [COMMAND_LENGTH]byte
 
 	for i, c := range command {
 		bytes[i] = byte(c)
@@ -80,7 +84,7 @@ func bytesToCommand(bytes []byte) string {
 }
 
 func extractCommand(request []byte) []byte {
-	return request[:commandLength]
+	return request[:COMMAND_LENGTH]
 }
 
 func requestBlocks() {
@@ -106,10 +110,11 @@ func sendBlock(addr string, b *Block) {
 	sendData(addr, request)
 }
 
-func sendData(addr string, data []byte) {
-	conn, err := net.Dial(protocol, addr)
+func sendData(addr string, data []byte) error {
+	conn, err := net.Dial(PROTOCOL, addr)
 	if err != nil {
-		fmt.Printf("%s is not available\n", addr)
+
+		fmt.Printf("sendData fail, %s is not available.\n", addr)
 		var updatedNodes []string
 
 		for _, node := range knownNodes {
@@ -120,7 +125,7 @@ func sendData(addr string, data []byte) {
 
 		knownNodes = updatedNodes
 
-		return
+		return err
 	}
 	defer conn.Close()
 
@@ -128,14 +133,27 @@ func sendData(addr string, data []byte) {
 	if err != nil {
 		log.Panic(err)
 	}
+	return err
 }
 
 func sendInv(address, kind string, items [][]byte) {
 	inventory := inv{nodeAddress, kind, items}
 	payload := gobEncode(inventory)
+	fmt.Println("to sendInv")
 	request := append(commandToBytes("inv"), payload...)
 
-	sendData(address, request)
+	err := error(nil)
+	for i := 0; i <= RETRY; i++ {
+		err = sendData(address, request)
+		if err == nil {
+			break
+		} else {
+			time.Sleep(time.Duration(INVERVAL_RETRY*(1+i)) * time.Second)
+		}
+	}
+	if err != nil {
+		fmt.Println("sendInv fail!!!")
+	}
 }
 
 func sendGetBlocks(address string) {
@@ -162,7 +180,7 @@ func sendTx(addr string, tnx *Transaction) {
 
 func sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetBestHeight()
-	payload := gobEncode(verzion{nodeVersion, bestHeight, nodeAddress})
+	payload := gobEncode(verzion{NODE_VERSION, bestHeight, nodeAddress})
 
 	request := append(commandToBytes("version"), payload...)
 
@@ -173,7 +191,7 @@ func handleAddr(request []byte) {
 	var buff bytes.Buffer
 	var payload addr
 
-	buff.Write(request[commandLength:])
+	buff.Write(request[COMMAND_LENGTH:])
 	dec := gob.NewDecoder(&buff)
 	err := dec.Decode(&payload)
 	if err != nil {
@@ -189,7 +207,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload block
 
-	buff.Write(request[commandLength:])
+	buff.Write(request[COMMAND_LENGTH:])
 	dec := gob.NewDecoder(&buff)
 	err := dec.Decode(&payload)
 	if err != nil {
@@ -219,7 +237,7 @@ func handleInv(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload inv
 
-	buff.Write(request[commandLength:])
+	buff.Write(request[COMMAND_LENGTH:])
 	dec := gob.NewDecoder(&buff)
 	err := dec.Decode(&payload)
 	if err != nil {
@@ -256,7 +274,7 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getblocks
 
-	buff.Write(request[commandLength:])
+	buff.Write(request[COMMAND_LENGTH:])
 	dec := gob.NewDecoder(&buff)
 	err := dec.Decode(&payload)
 	if err != nil {
@@ -271,7 +289,7 @@ func handleGetData(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getdata
 
-	buff.Write(request[commandLength:])
+	buff.Write(request[COMMAND_LENGTH:])
 	dec := gob.NewDecoder(&buff)
 	err := dec.Decode(&payload)
 	if err != nil {
@@ -296,11 +314,39 @@ func handleGetData(request []byte, bc *Blockchain) {
 	}
 }
 
+func handleVersion(request []byte, bc *Blockchain) {
+	var buff bytes.Buffer
+	var payload verzion
+
+	buff.Write(request[COMMAND_LENGTH:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	myBestHeight := bc.GetBestHeight()
+	foreignerBestHeight := payload.BestHeight
+
+	if myBestHeight < foreignerBestHeight {
+		fmt.Printf("handleVersion, sendGetBlocks to:%s\n", payload.AddrFrom)
+		sendGetBlocks(payload.AddrFrom)
+	} else if myBestHeight > foreignerBestHeight {
+		fmt.Printf("handleVersion, sendVersion to:%s\n", payload.AddrFrom)
+		sendVersion(payload.AddrFrom, bc)
+	}
+
+	// sendAddr(payload.AddrFrom)
+	if !nodeIsKnown(payload.AddrFrom) {
+		knownNodes = append(knownNodes, payload.AddrFrom)
+	}
+}
+
 func handleTx(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload tx
 
-	buff.Write(request[commandLength:])
+	buff.Write(request[COMMAND_LENGTH:])
 	dec := gob.NewDecoder(&buff)
 	err := dec.Decode(&payload)
 	if err != nil {
@@ -311,7 +357,7 @@ func handleTx(request []byte, bc *Blockchain) {
 	tx := DeserializeTransaction(txData)
 	if bc.VerifyTransaction(&tx) {
 		mempool[hex.EncodeToString(tx.ID)] = tx
-	}else{
+	} else {
 		fmt.Println("Received transaction is invalid! Waiting for new ones..")
 	}
 
@@ -322,7 +368,7 @@ func handleTx(request []byte, bc *Blockchain) {
 			}
 		}
 	} else {
-		if len(mempool) >= 2 && len(miningAddress) > 0 {
+		if len(mempool) >= THRESHOLD && len(miningAddress) > 0 {
 		MineTransactions:
 			var txs []*Transaction
 
@@ -361,33 +407,9 @@ func handleTx(request []byte, bc *Blockchain) {
 			if len(mempool) > 0 {
 				goto MineTransactions
 			}
+		} else if len(miningAddress) > 0 {
+			fmt.Printf("len(mempool):%d, less than THRESHOLD:%d, so Waiting for new ones...", len(mempool), THRESHOLD)
 		}
-	}
-}
-
-func handleVersion(request []byte, bc *Blockchain) {
-	var buff bytes.Buffer
-	var payload verzion
-
-	buff.Write(request[commandLength:])
-	dec := gob.NewDecoder(&buff)
-	err := dec.Decode(&payload)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	myBestHeight := bc.GetBestHeight()
-	foreignerBestHeight := payload.BestHeight
-
-	if myBestHeight < foreignerBestHeight {
-		sendGetBlocks(payload.AddrFrom)
-	} else if myBestHeight > foreignerBestHeight {
-		sendVersion(payload.AddrFrom, bc)
-	}
-
-	// sendAddr(payload.AddrFrom)
-	if !nodeIsKnown(payload.AddrFrom) {
-		knownNodes = append(knownNodes, payload.AddrFrom)
 	}
 }
 
@@ -396,7 +418,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	if err != nil {
 		log.Panic(err)
 	}
-	command := bytesToCommand(request[:commandLength])
+	command := bytesToCommand(request[:COMMAND_LENGTH])
 	fmt.Printf("Received %s command\n", command)
 
 	switch command {
@@ -425,7 +447,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 func StartServer(nodeID, minerAddress string) {
 	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
 	miningAddress = minerAddress
-	ln, err := net.Listen(protocol, nodeAddress)
+	ln, err := net.Listen(PROTOCOL, nodeAddress)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -434,6 +456,7 @@ func StartServer(nodeID, minerAddress string) {
 	bc := NewBlockchain(nodeID)
 
 	if nodeAddress != knownNodes[0] {
+		fmt.Printf("sendVersion from %s to %s\n", nodeAddress, knownNodes[0])
 		sendVersion(knownNodes[0], bc)
 	}
 
@@ -470,4 +493,3 @@ func nodeIsKnown(addr string) bool {
 
 //TODO addr message
 // Provide information on known nodes of the network. Non-advertised nodes should be forgotten after typically 3 hours
-
