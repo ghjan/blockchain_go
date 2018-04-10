@@ -85,3 +85,9 @@ start miner node
 ```bash
 source start_miner_node.sh
 ```
+
+NODE 3001
+send coins
+```bash
+source send_coin_3001.sh
+```
