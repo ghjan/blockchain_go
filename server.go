@@ -32,6 +32,7 @@ type block struct {
 
 type getblocks struct {
 	AddrFrom string
+	BestHeight int
 }
 
 type getdata struct {
@@ -83,9 +84,9 @@ func extractCommand(request []byte) []byte {
 	return request[:commandLength]
 }
 
-func requestBlocks() {
+func requestBlocks(bc *Blockchain) {
 	for _, node := range knownNodes {
-		sendGetBlocks(node)
+		sendGetBlocks(node, bc)
 	}
 }
 
@@ -138,8 +139,8 @@ func sendInv(address, kind string, items [][]byte) {
 	sendData(address, request)
 }
 
-func sendGetBlocks(address string) {
-	payload := gobEncode(getblocks{nodeAddress})
+func sendGetBlocks(address string,bc *Blockchain) {
+	payload := gobEncode(getblocks{nodeAddress, bc.GetBestHeight()})
 	request := append(commandToBytes("getblocks"), payload...)
 
 	sendData(address, request)
@@ -169,7 +170,7 @@ func sendVersion(addr string, bc *Blockchain) {
 	sendData(addr, request)
 }
 
-func handleAddr(request []byte) {
+func handleAddr(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload addr
 
@@ -182,7 +183,7 @@ func handleAddr(request []byte) {
 
 	knownNodes = append(knownNodes, payload.AddrList...)
 	fmt.Printf("There are %d known nodes now!\n", len(knownNodes))
-	requestBlocks()
+	requestBlocks(bc)
 }
 
 func handleBlock(request []byte, bc *Blockchain) {
@@ -263,7 +264,7 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 		log.Panic(err)
 	}
 
-	blocks := bc.GetBlockHashes()
+	blocks := bc.GetBlockHashes(payload.BestHeight)
 	sendInv(payload.AddrFrom, "block", blocks)
 }
 
@@ -380,7 +381,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 	foreignerBestHeight := payload.BestHeight
 
 	if myBestHeight < foreignerBestHeight {
-		sendGetBlocks(payload.AddrFrom)
+		sendGetBlocks(payload.AddrFrom, bc)
 	} else if myBestHeight > foreignerBestHeight {
 		sendVersion(payload.AddrFrom, bc)
 	}
@@ -401,7 +402,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 
 	switch command {
 	case "addr":
-		handleAddr(request)
+		handleAddr(request, bc)
 	case "block":
 		handleBlock(request, bc)
 	case "inv":

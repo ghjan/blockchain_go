@@ -15,6 +15,7 @@ import (
 const dbFile = "blockchain_%s.db"
 const blocksBucket = "blocks"
 const genesisCoinbaseData = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
+const BLOCKS_COUNT_PER_GET = 500 //每次getBlocks的上限
 
 // Blockchain implements interactions with a DB
 type Blockchain struct {
@@ -247,21 +248,23 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 	return block, nil
 }
 
-// GetBlockHashes returns a list of hashes of all the blocks in the chain
-func (bc *Blockchain) GetBlockHashes() [][]byte {
+// GetBlockHashes returns a list of hashes of the blocks in the chain (after the bestHeight)
+func (bc *Blockchain) GetBlockHashes(bestHeight int) [][]byte {
 	var blocks [][]byte
-	bci := bc.Iterator()
+	myBestHeight := bc.GetBestHeight()
+	if myBestHeight > bestHeight {
+		bci := bc.Iterator()
 
-	for {
-		block := bci.Next()
+		for i := 0; i <Min(BLOCKS_COUNT_PER_GET, myBestHeight-bestHeight); i++ {
+			block := bci.Next()
 
-		blocks = append(blocks, block.Hash)
+			blocks = append(blocks, block.Hash)
 
-		if len(block.PrevBlockHash) == 0 {
-			break
+			if len(block.PrevBlockHash) == 0 {
+				break
+			}
 		}
 	}
-
 	return blocks
 }
 
