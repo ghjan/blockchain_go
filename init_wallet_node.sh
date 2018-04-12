@@ -1,3 +1,4 @@
+#!/bin/bash
 export NODE_ID=3001
 if [ -z "$WALLET_1" ]; then
     w_results=$(blockchain_go createwallet)
@@ -17,4 +18,8 @@ if [ -z "$WALLET_3" ]; then
     echo $WALLET_3 >wallet3.log
 fi
 
-cp blockchain_genesis.db blockchain_3001.db
+if [ -e "blockchain_genesis.db" ]; then
+    cp blockchain_genesis.db blockchain_3001.db
+else
+    echo "blockchain_genesis.db is not existed, please run create_blockchain.sh firstly!"
+fi
