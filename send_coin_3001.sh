@@ -1,18 +1,26 @@
 #!/bin/bash
-if [ -z "$WALLET_1" ]; then
+if [ -z "$CENTRAL_NODE" -a -e "central_node.log" ]; then
+    export CENTRAL_NODE=$(cat central_node.log)
+fi
+
+if [ -z "$WALLET_1" -a -e "wallet1.log" ]; then
     export WALLET_1=$(cat wallet1.log)
 fi
 
-if [ -z "$WALLET_2" ]; then
+if [ -z "$WALLET_2" -a -e "wallet2.log" ]; then
     export WALLET_2=$(cat wallet2.log)
 fi
 
-if [ -z "$WALLET_3" ]; then
+if [ -z "$WALLET_3" -a -e "wallet3.log" ]; then
     export WALLET_3=$(cat wallet3.log)
 fi
 
-if [ -z "$MINER_WALLET" ]; then
+if [ -z "$MINER_WALLET" -a -e "wallet4.log" ]; then
     export MINER_WALLET=$(cat wallet4.log)
 fi
-blockchain_go send -from $WALLET_1 -to $WALLET_3 -amount 1
-blockchain_go send -from $WALLET_2 -to $MINER_WALLET -amount 2
+if [ -n "$WALLET_1" -a -n "$WALLET_3" ]; then
+    blockchain_go send -from $WALLET_1 -to $WALLET_3 -amount 1
+fi
+if [ -n "$WALLET_2" -a -n "$MINER_WALLET" ]; then
+    blockchain_go send -from $WALLET_2 -to $MINER_WALLET -amount 2
+fi
