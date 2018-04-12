@@ -21,7 +21,7 @@ const INVERVAL_RETRY = 3
 
 var nodeAddress string
 var miningAddress string
-var knownNodes = []string{"localhost:3000"}
+var knownNodes = []string{"www.davidzhang.xin:3000"}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]Transaction)
 
