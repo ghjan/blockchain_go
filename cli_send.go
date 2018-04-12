@@ -32,7 +32,7 @@ func (cli *CLI) send(from, to string, amount int, nodeID string, mineNow bool) {
 		newBlock := bc.MineBlock(txs)
 		UTXOSet.Update(newBlock)
 	} else {
-		sendTx(knownNodes[0], tx)
+		sendTx(knownNodes[0], tx, nodeAddressExternal)
 	}
 
 	fmt.Println("Success!")
