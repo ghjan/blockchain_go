@@ -1,4 +1,3 @@
-export CENTRAL_NODE=$(cat central_node.log)
 if [ -z "$CENTRAL_NODE" -a -e "central_node.log" ]; then
     export CENTRAL_NODE=$(cat central_node.log)
 fi
