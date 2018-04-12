@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
-	"time"
-	"os"
 	"strings"
+	"time"
 )
 
 const PROTOCOL = "tcp"
@@ -21,11 +21,12 @@ const THRESHOLD = 2
 const RETRY = 3
 const INVERVAL_RETRY = 3
 
-var nodeAddress string
+var nodeAddress, nodeAddress_external string
 var miningAddress string
 
 const CENTRAL_NODE = "www.davidzhang.xin:3000"
 
+var beMainNode = false
 var CENTRAL_NODE_IP = ""
 var knownNodes = []string{CENTRAL_NODE}
 var blocksInTransit = [][]byte{}
@@ -477,38 +478,53 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 
 // StartServer starts a node
 func StartServer(nodeID, minerAddress string) {
-	if ipSelf == "" {
-		ipEx, err := get_external()
-		if err != nil {
-			fmt.Println("can not get correct external ip address, so use interval address instead!")
-			fmt.Println(err)
-			//log.Panic(err)
-			ipInternal, err := getIP()
-			if err != nil {
-				log.Panic(err)
-				os.Exit(1)
-			}
-			ipSelf = ipInternal
-		} else {
-			ipSelf = ipEx
-		}
-	}
-
-	nodeAddress = fmt.Sprintf(ipSelf+":%s", nodeID)
-	miningAddress = minerAddress
-	ln, err := net.Listen(PROTOCOL, nodeAddress)
+	ln, err := listenMe(nodeID, minerAddress)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer ln.Close()
+	acceptLoop(nodeID, ln)
+}
 
+func listenMe(nodeID, minerAddress string) (net.Listener, error) {
+	var ips []string
+	if ipSelf == "" {
+		ipEx, err := get_external()
+		if err != nil {
+			fmt.Println("can not get correct external ip address, so use interval address instead!")
+			//fmt.Println(err)
+			log.Panic(err)
+		}
+		ipInternal, err := getIP()
+		if err != nil {
+			log.Panic(err)
+		}
+		ips = append(ips, ipInternal)
+		ips = append(ips, ipEx)
+		if ! beMainNode {
+			nodeAddress_external = fmt.Sprintf(ipEx+":%s", nodeID)
+			beMainNode = isMainNode(nodeAddress_external)
+		}
+	}
+
+	for _, ip := range ips {
+		nodeAddress = fmt.Sprintf(ip+":%s", nodeID)
+		miningAddress = minerAddress
+		ln, err := net.Listen(PROTOCOL, nodeAddress)
+		if err == nil {
+			ipSelf = ip
+			return ln, err
+		}
+	}
+	return net.Listener(nil), errors.New("fail")
+}
+
+func acceptLoop(nodeID string, ln net.Listener) {
 	bc := NewBlockchain(nodeID)
-
 	if !isMainNode(nodeAddress) {
 		fmt.Printf("sendVersion from %s to %s\n", nodeAddress, knownNodes[0])
 		sendVersion(knownNodes[0], bc)
 	}
-
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
