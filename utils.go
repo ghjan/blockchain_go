@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
-	"fmt"
+	"net/http"
 	"os"
 )
 
@@ -33,12 +35,11 @@ func GetPubkeyhashFromAddress(address string) []byte {
 	return pubKeyHash
 }
 
-func getIP() string {
+func getIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
 
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
 	}
 	ip := ""
 	for _, address := range addrs {
@@ -52,5 +53,46 @@ func getIP() string {
 
 		}
 	}
-	return ip
+	return ip, err
+}
+
+//获取外部ip地址
+func get_external() (string, error) {
+	resp, err := http.Get("http://myexternalip.com/raw")
+	if err != nil {
+		os.Stderr.WriteString(err.Error())
+		os.Stderr.WriteString("\n")
+		return "", err
+	}
+	defer resp.Body.Close()
+	//io.Copy(os.Stdout, resp.Body)
+	bb, err := ioutil.ReadAll(resp.Body)
+	if err == nil {
+		return string(bb[:]), nil
+	} else {
+		return "", err
+	}
+}
+
+//获取内部ip地址
+func get_internal() ([]string, error) {
+	var ips []string
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		os.Stderr.WriteString("Oops:" + err.Error())
+		return ips, err
+	}
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ips = append(ips, ipnet.IP.String())
+			}
+		}
+	}
+	return ips, err
+}
+
+func lookupHostIP(domainName string) ([]string, error) {
+	ns, err := net.LookupHost(domainName)
+	return ns, err
 }

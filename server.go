@@ -10,6 +10,8 @@ import (
 	"log"
 	"net"
 	"time"
+	"os"
+	"strings"
 )
 
 const PROTOCOL = "tcp"
@@ -21,11 +23,14 @@ const INVERVAL_RETRY = 3
 
 var nodeAddress string
 var miningAddress string
+
 const CENTRAL_NODE = "www.davidzhang.xin:3000"
+
+var CENTRAL_NODE_IP = ""
 var knownNodes = []string{CENTRAL_NODE}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]Transaction)
-var ipSelf=""
+var ipSelf = ""
 
 type addr struct {
 	AddrList []string
@@ -363,7 +368,7 @@ func handleTx(request []byte, bc *Blockchain) {
 		fmt.Println("Received transaction is invalid! Waiting for new ones..")
 	}
 
-	if nodeAddress == knownNodes[0] {
+	if isMainNode(nodeAddress) {
 		for _, node := range knownNodes {
 			if node != nodeAddress && node != payload.AddFrom {
 				sendInv(node, "tx", [][]byte{tx.ID})
@@ -414,6 +419,31 @@ func handleTx(request []byte, bc *Blockchain) {
 		}
 	}
 }
+func isMainNode(nodeAddress string) bool {
+	if CENTRAL_NODE_IP == "" {
+		lookupMainNodeIP()
+	}
+	if CENTRAL_NODE_IP != "" {
+		port := strings.Split(CENTRAL_NODE, ":")[1]
+		return nodeAddress == CENTRAL_NODE_IP+":"+port
+	} else {
+		fmt.Println("can not process ip+port for CENTRAOL_NODE, so use nodeAddress == knownNodes[0] instead!")
+		return nodeAddress == knownNodes[0]
+	}
+}
+
+func lookupMainNodeIP() (string, error) {
+	ips, err := lookupHostIP(strings.Split(CENTRAL_NODE, ":")[0])
+	if err != nil {
+		log.Panic(err)
+	}
+	if len(ips) > 0 {
+		CENTRAL_NODE_IP = ips[0]
+	} else {
+		fmt.Println("can not find an ip address for the CENTRAL_NODE")
+	}
+	return CENTRAL_NODE_IP, err
+}
 
 func handleConnection(conn net.Conn, bc *Blockchain) {
 	request, err := ioutil.ReadAll(conn)
@@ -447,8 +477,21 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 
 // StartServer starts a node
 func StartServer(nodeID, minerAddress string) {
-	if ipSelf==""{
-		ipSelf=getIP()
+	if ipSelf == "" {
+		ipEx, err := get_external()
+		if err != nil {
+			fmt.Println("can not get correct external ip address, so use interval address instead!")
+			fmt.Println(err)
+			//log.Panic(err)
+			ipInternal, err := getIP()
+			if err != nil {
+				log.Panic(err)
+				os.Exit(1)
+			}
+			ipSelf = ipInternal
+		} else {
+			ipSelf = ipEx
+		}
 	}
 
 	nodeAddress = fmt.Sprintf(ipSelf+":%s", nodeID)
@@ -461,7 +504,7 @@ func StartServer(nodeID, minerAddress string) {
 
 	bc := NewBlockchain(nodeID)
 
-	if nodeAddress != knownNodes[0] {
+	if !isMainNode(nodeAddress) {
 		fmt.Printf("sendVersion from %s to %s\n", nodeAddress, knownNodes[0])
 		sendVersion(knownNodes[0], bc)
 	}
