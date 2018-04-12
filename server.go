@@ -21,7 +21,8 @@ const THRESHOLD = 2
 const RETRY = 3
 const INVERVAL_RETRY = 3
 
-var nodeAddress, nodeAddress_external string
+//#NODE_ADDRESS_BIND和nodeAddressExternal可能不一样，前者仅仅用于tcp socket绑定，后者用于外部通信地址（比如运行在docker container中时）
+var NODE_ADDRESS_BIND, nodeAddressExternal string
 var miningAddress string
 
 const CENTRAL_NODE = "www.davidzhang.xin:3000"
@@ -97,11 +98,11 @@ func extractCommand(request []byte) []byte {
 
 func requestBlocks() {
 	for _, node := range knownNodes {
-		sendGetBlocks(node)
+		sendGetBlocks(node, nodeAddressExternal)
 	}
 }
 
-func sendAddr(address string) {
+func sendAddr(address string, nodeAddress string) {
 	nodes := addr{knownNodes}
 	nodes.AddrList = append(nodes.AddrList, nodeAddress)
 	payload := gobEncode(nodes)
@@ -110,7 +111,7 @@ func sendAddr(address string) {
 	sendData(address, request)
 }
 
-func sendBlock(addr string, b *Block) {
+func sendBlock(addr string, b *Block, nodeAddress string) {
 	data := block{nodeAddress, b.Serialize()}
 	payload := gobEncode(data)
 	request := append(commandToBytes("block"), payload...)
@@ -144,7 +145,7 @@ func sendData(addr string, data []byte) error {
 	return err
 }
 
-func sendInv(address, kind string, items [][]byte) {
+func sendInv(address, kind string, items [][]byte, nodeAddress string) {
 	inventory := inv{nodeAddress, kind, items}
 	payload := gobEncode(inventory)
 	fmt.Println("to sendInv")
@@ -164,21 +165,21 @@ func sendInv(address, kind string, items [][]byte) {
 	}
 }
 
-func sendGetBlocks(address string) {
+func sendGetBlocks(address string, nodeAddress string) {
 	payload := gobEncode(getblocks{nodeAddress})
 	request := append(commandToBytes("getblocks"), payload...)
 
 	sendData(address, request)
 }
 
-func sendGetData(address, kind string, id []byte) {
+func sendGetData(address, kind string, id []byte, nodeAddress string) {
 	payload := gobEncode(getdata{nodeAddress, kind, id})
 	request := append(commandToBytes("getdata"), payload...)
 
 	sendData(address, request)
 }
 
-func sendTx(addr string, tnx *Transaction) {
+func sendTx(addr string, tnx *Transaction, nodeAddress string) {
 	data := tx{nodeAddress, tnx.Serialize()}
 	payload := gobEncode(data)
 	request := append(commandToBytes("tx"), payload...)
@@ -186,7 +187,7 @@ func sendTx(addr string, tnx *Transaction) {
 	sendData(addr, request)
 }
 
-func sendVersion(addr string, bc *Blockchain) {
+func sendVersion(addr string, bc *Blockchain, nodeAddress string) {
 	bestHeight := bc.GetBestHeight()
 	payload := gobEncode(verzion{NODE_VERSION, bestHeight, nodeAddress})
 
@@ -232,7 +233,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 
 	if len(blocksInTransit) > 0 {
 		blockHash := blocksInTransit[0]
-		sendGetData(payload.AddrFrom, "block", blockHash)
+		sendGetData(payload.AddrFrom, "block", blockHash, nodeAddressExternal)
 
 		blocksInTransit = blocksInTransit[1:]
 	} else {
@@ -258,7 +259,7 @@ func handleInv(request []byte, bc *Blockchain) {
 		blocksInTransit = payload.Items
 
 		blockHash := payload.Items[0]
-		sendGetData(payload.AddrFrom, "block", blockHash)
+		sendGetData(payload.AddrFrom, "block", blockHash, nodeAddressExternal)
 
 		newInTransit := [][]byte{}
 		for _, b := range blocksInTransit {
@@ -273,7 +274,7 @@ func handleInv(request []byte, bc *Blockchain) {
 		txID := payload.Items[0]
 
 		if mempool[hex.EncodeToString(txID)].ID == nil {
-			sendGetData(payload.AddrFrom, "tx", txID)
+			sendGetData(payload.AddrFrom, "tx", txID, nodeAddressExternal)
 		}
 	}
 }
@@ -290,7 +291,7 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 	}
 
 	blocks := bc.GetBlockHashes()
-	sendInv(payload.AddrFrom, "block", blocks)
+	sendInv(payload.AddrFrom, "block", blocks, nodeAddressExternal)
 }
 
 func handleGetData(request []byte, bc *Blockchain) {
@@ -310,14 +311,14 @@ func handleGetData(request []byte, bc *Blockchain) {
 			return
 		}
 
-		sendBlock(payload.AddrFrom, &block)
+		sendBlock(payload.AddrFrom, &block, nodeAddressExternal)
 	}
 
 	if payload.Type == "tx" {
 		txID := hex.EncodeToString(payload.ID)
 		tx := mempool[txID]
 
-		sendTx(payload.AddrFrom, &tx)
+		sendTx(payload.AddrFrom, &tx, nodeAddressExternal)
 		// delete(mempool, txID)
 	}
 }
@@ -338,10 +339,10 @@ func handleVersion(request []byte, bc *Blockchain) {
 
 	if myBestHeight < foreignerBestHeight {
 		fmt.Printf("handleVersion, sendGetBlocks to:%s\n", payload.AddrFrom)
-		sendGetBlocks(payload.AddrFrom)
+		sendGetBlocks(payload.AddrFrom, nodeAddressExternal)
 	} else if myBestHeight > foreignerBestHeight {
 		fmt.Printf("handleVersion, sendVersion to:%s\n", payload.AddrFrom)
-		sendVersion(payload.AddrFrom, bc)
+		sendVersion(payload.AddrFrom, bc, nodeAddressExternal)
 	}
 
 	// sendAddr(payload.AddrFrom)
@@ -369,10 +370,10 @@ func handleTx(request []byte, bc *Blockchain) {
 		fmt.Println("Received transaction is invalid! Waiting for new ones..")
 	}
 
-	if isMainNode(nodeAddress) {
+	if beMainNode {
 		for _, node := range knownNodes {
-			if node != nodeAddress && node != payload.AddFrom {
-				sendInv(node, "tx", [][]byte{tx.ID})
+			if node != CENTRAL_NODE && node != nodeAddressExternal && node != payload.AddFrom {
+				sendInv(node, "tx", [][]byte{tx.ID}, nodeAddressExternal)
 			}
 		}
 	} else {
@@ -407,8 +408,8 @@ func handleTx(request []byte, bc *Blockchain) {
 			}
 
 			for _, node := range knownNodes {
-				if node != nodeAddress {
-					sendInv(node, "block", [][]byte{newBlock.Hash})
+				if node != nodeAddressExternal {
+					sendInv(node, "block", [][]byte{newBlock.Hash}, nodeAddressExternal)
 				}
 			}
 
@@ -501,17 +502,16 @@ func listenMe(nodeID, minerAddress string) (net.Listener, error) {
 		}
 		ips = append(ips, ipInternal)
 		ips = append(ips, ipEx)
-		if ! beMainNode {
-			nodeAddress_external = fmt.Sprintf(ipEx+":%s", nodeID)
-			beMainNode = isMainNode(nodeAddress_external)
-		}
+		nodeAddressExternal = fmt.Sprintf(ipEx+":%s", nodeID)
+		beMainNode = isMainNode(nodeAddressExternal)
 	}
 
 	for _, ip := range ips {
-		nodeAddress = fmt.Sprintf(ip+":%s", nodeID)
+		nodeAddress := fmt.Sprintf(ip+":%s", nodeID)
 		miningAddress = minerAddress
 		ln, err := net.Listen(PROTOCOL, nodeAddress)
 		if err == nil {
+			NODE_ADDRESS_BIND = nodeAddress
 			ipSelf = ip
 			return ln, err
 		}
@@ -521,9 +521,9 @@ func listenMe(nodeID, minerAddress string) (net.Listener, error) {
 
 func acceptLoop(nodeID string, ln net.Listener) {
 	bc := NewBlockchain(nodeID)
-	if !isMainNode(nodeAddress) {
-		fmt.Printf("sendVersion from %s to %s\n", nodeAddress, knownNodes[0])
-		sendVersion(knownNodes[0], bc)
+	if !beMainNode {
+		fmt.Printf("sendVersion from %s to %s\n", nodeAddressExternal, knownNodes[0])
+		sendVersion(knownNodes[0], bc, nodeAddressExternal)
 	}
 	for {
 		conn, err := ln.Accept()
