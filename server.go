@@ -21,9 +21,11 @@ const INVERVAL_RETRY = 3
 
 var nodeAddress string
 var miningAddress string
-var knownNodes = []string{"www.davidzhang.xin:3000"}
+const CENTRAL_NODE = "www.davidzhang.xin:3000"
+var knownNodes = []string{CENTRAL_NODE}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]Transaction)
+var ipSelf=""
 
 type addr struct {
 	AddrList []string
@@ -445,7 +447,11 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 
 // StartServer starts a node
 func StartServer(nodeID, minerAddress string) {
-	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
+	if ipSelf==""{
+		ipSelf=getIP()
+	}
+
+	nodeAddress = fmt.Sprintf(ipSelf+":%s", nodeID)
 	miningAddress = minerAddress
 	ln, err := net.Listen(PROTOCOL, nodeAddress)
 	if err != nil {
