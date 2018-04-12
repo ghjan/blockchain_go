@@ -1,3 +1,5 @@
 export NODE_ID=3002
-export MINER_WALLET=$(cat wallet4.log)
+if [ -z "$MINER_WALLET" ]; then
+    export MINER_WALLET=$(cat wallet4.log)
+fi
 blockchain_go startnode -miner $MINER_WALLET
