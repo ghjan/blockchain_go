@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // IntToHex converts an int64 to a byte array
@@ -68,7 +69,7 @@ func get_external() (string, error) {
 	//io.Copy(os.Stdout, resp.Body)
 	bb, err := ioutil.ReadAll(resp.Body)
 	if err == nil {
-		return string(bb[:]), nil
+		return strings.Replace(string(bb[:]), "\n", "", -1), nil
 	} else {
 		return "", err
 	}

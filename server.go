@@ -29,7 +29,8 @@ const CENTRAL_NODE = "www.davidzhang.xin:3000"
 
 var beMainNode = false
 var CENTRAL_NODE_IP = ""
-var knownNodes = []string{CENTRAL_NODE}
+var CENTRAL_NODE_ADDRESS = ""
+var knownNodes = []string{}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]Transaction)
 var ipSelf = ""
@@ -422,15 +423,17 @@ func handleTx(request []byte, bc *Blockchain) {
 	}
 }
 func isMainNode(nodeAddress string) bool {
-	if CENTRAL_NODE_IP == "" {
-		lookupMainNodeIP()
+	if CENTRAL_NODE_ADDRESS == "" {
+		initKnownnodes()
 	}
-	if CENTRAL_NODE_IP != "" {
-		port := strings.Split(CENTRAL_NODE, ":")[1]
-		return nodeAddress == CENTRAL_NODE_IP+":"+port
-	} else {
+	if CENTRAL_NODE_ADDRESS != "" {
+		return nodeAddress == CENTRAL_NODE_ADDRESS
+	} else if (len(knownNodes) > 0) {
 		fmt.Println("can not process ip+port for CENTRAOL_NODE, so use nodeAddress == knownNodes[0] instead!")
 		return nodeAddress == knownNodes[0]
+	} else {
+		fmt.Println("Oops!knownNodes is not initialized.")
+		return false
 	}
 }
 
@@ -441,6 +444,7 @@ func lookupMainNodeIP() (string, error) {
 	}
 	if len(ips) > 0 {
 		CENTRAL_NODE_IP = ips[0]
+		fmt.Printf("lookupMainNodeIP(), set CENTRAL_NODE_IP:%s\n", CENTRAL_NODE_IP)
 	} else {
 		fmt.Println("can not find an ip address for the CENTRAL_NODE")
 	}
@@ -479,15 +483,28 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 
 // StartServer starts a node
 func StartServer(nodeID, minerAddress string) {
+	initKnownnodes()
 	ln, err := listenMe(nodeID, minerAddress)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer ln.Close()
-	acceptLoop(nodeID, ln)
+	serverAcceptLoop(nodeID, ln)
+}
+func initKnownnodes() {
+	if CENTRAL_NODE_ADDRESS == "" {
+		lookupMainNodeIP()
+	}
+	if CENTRAL_NODE_IP != "" {
+		port := strings.Split(CENTRAL_NODE, ":")[1]
+		CENTRAL_NODE_ADDRESS = CENTRAL_NODE_IP + ":" + port
+		knownNodes = append(knownNodes, CENTRAL_NODE_ADDRESS)
+		fmt.Printf("initKnownnodes(), CENTRAL_NODE_ADDRESS:%s \n", CENTRAL_NODE_ADDRESS)
+	}
 }
 
 func listenMe(nodeID, minerAddress string) (net.Listener, error) {
+	//ips := []string{"0.0.0.0"}
 	var ips []string
 	if ipSelf == "" {
 		ipEx, err := get_external()
@@ -502,8 +519,19 @@ func listenMe(nodeID, minerAddress string) (net.Listener, error) {
 		}
 		ips = append(ips, ipInternal)
 		ips = append(ips, ipEx)
+		fmt.Printf("ips:%v\n", ips)
 		nodeAddressExternal = fmt.Sprintf(ipEx+":%s", nodeID)
-		beMainNode = isMainNode(nodeAddressExternal)
+		ipSelf = ipEx
+		for _, ip := range ips {
+			address := fmt.Sprintf(ip+":%s", nodeID)
+			beMainNode = isMainNode(address)
+			if beMainNode {
+				nodeAddressExternal = address
+				break
+			}
+		}
+		fmt.Printf("nodeAddressExternal:%s\n", nodeAddressExternal)
+		fmt.Printf("beMainNode:%t\n", beMainNode)
 	}
 
 	for _, ip := range ips {
@@ -512,6 +540,7 @@ func listenMe(nodeID, minerAddress string) (net.Listener, error) {
 		ln, err := net.Listen(PROTOCOL, nodeAddress)
 		if err == nil {
 			NODE_ADDRESS_BIND = nodeAddress
+			fmt.Printf("NODE_ADDRESS_BIND:%s\n", NODE_ADDRESS_BIND)
 			ipSelf = ip
 			return ln, err
 		}
@@ -519,7 +548,7 @@ func listenMe(nodeID, minerAddress string) (net.Listener, error) {
 	return net.Listener(nil), errors.New("fail")
 }
 
-func acceptLoop(nodeID string, ln net.Listener) {
+func serverAcceptLoop(nodeID string, ln net.Listener) {
 	bc := NewBlockchain(nodeID)
 	if !beMainNode {
 		fmt.Printf("sendVersion from %s to %s\n", nodeAddressExternal, knownNodes[0])
